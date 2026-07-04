@@ -236,14 +236,13 @@ export const socialStore = reactive({
     return this.followedUserIds.includes(String(targetUserId))
   },
 
-  likePublication(publicationId, userId = this.interactionUserId) {
+  async likePublication(publicationId, userId = this.interactionUserId) {
     if (!userId) return false
 
     const publication = this.getPublicationById(publicationId)
     if (!publication) return false
 
     const alreadyLiked = this.isPublicationLiked(publicationId, userId)
-    const serverHasLike = this.likedPublicationServerIds.includes(String(publicationId))
 
     if (alreadyLiked) {
       uniqueRemove(this.likedPublicationIds, publicationId)
@@ -253,32 +252,31 @@ export const socialStore = reactive({
       return false
     }
 
-    if (!serverHasLike) {
-      return socialApi.likePublication(publicationId, { userId }).then(() => {
-        uniquePush(this.likedPublicationServerIds, publicationId)
-        uniquePush(this.likedPublicationIds, publicationId)
-        publication.likes = Number(publication.likes || 0) + 1
-        this.publicationLikeOffsets[String(publicationId)] = 0
-        this.persistInteractionState()
-        return true
-      })
-    }
-
     uniquePush(this.likedPublicationIds, publicationId)
     publication.likes = Number(publication.likes || 0) + 1
     this.publicationLikeOffsets[String(publicationId)] = 0
     this.persistInteractionState()
+
+    try {
+      await socialApi.likePublication(publicationId, { userId })
+    } catch (error) {
+      uniqueRemove(this.likedPublicationIds, publicationId)
+      publication.likes = Math.max(0, Number(publication.likes || 0) - 1)
+      this.publicationLikeOffsets[String(publicationId)] = -1
+      this.persistInteractionState()
+      throw error
+    }
+
     return true
   },
 
-  followUser(targetUserId, followerUserId = this.interactionUserId) {
+  async followUser(targetUserId, followerUserId = this.interactionUserId) {
     if (!followerUserId) return false
 
     const user = this.getUserById(targetUserId)
     if (!user) return false
 
     const alreadyFollowing = this.isUserFollowed(targetUserId, followerUserId)
-    const serverHasFollow = this.followedUserServerIds.includes(String(targetUserId))
 
     if (alreadyFollowing) {
       uniqueRemove(this.followedUserIds, targetUserId)
@@ -288,21 +286,21 @@ export const socialStore = reactive({
       return false
     }
 
-    if (!serverHasFollow) {
-      return iamApi.followUser(targetUserId, followerUserId).then(() => {
-        uniquePush(this.followedUserServerIds, targetUserId)
-        uniquePush(this.followedUserIds, targetUserId)
-        user.followers = Number(user.followers || 0) + 1
-        this.userFollowerOffsets[String(targetUserId)] = 0
-        this.persistInteractionState()
-        return true
-      })
-    }
-
     uniquePush(this.followedUserIds, targetUserId)
     user.followers = Number(user.followers || 0) + 1
     this.userFollowerOffsets[String(targetUserId)] = 0
     this.persistInteractionState()
+
+    try {
+      await iamApi.followUser(targetUserId, followerUserId)
+    } catch (error) {
+      uniqueRemove(this.followedUserIds, targetUserId)
+      user.followers = Math.max(0, Number(user.followers || 0) - 1)
+      this.userFollowerOffsets[String(targetUserId)] = -1
+      this.persistInteractionState()
+      throw error
+    }
+
     return true
   },
 

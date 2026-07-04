@@ -80,7 +80,7 @@ function saveEdit(comment) {
     </div>
 
     <div v-if="comments.length === 0" class="comment-thread-empty muted">
-      Todavía no hay comentarios.
+      Todavía no hay comentarios. Sé el primero en abrir la conversación.
     </div>
 
     <article v-for="comment in comments" :key="comment.id" class="comment-item">
@@ -127,6 +127,7 @@ function saveEdit(comment) {
   border: 1px solid #314155;
   border-radius: 20px;
   background: #141b26;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
 }
 
 .comment-thread-header {
