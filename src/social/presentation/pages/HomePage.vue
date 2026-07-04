@@ -1,12 +1,10 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import { authStore } from '../../../iam/application/auth.store'
 import { socialStore } from '../../application/social.store'
 import PostCard from '../components/PostCard.vue'
 import PostComposerDialog from '../components/PostComposerDialog.vue'
 
-const router = useRouter()
 const composerVisible = ref(false)
 
 const publications = computed(() => socialStore.getFilteredPublications())
@@ -55,10 +53,6 @@ async function handleUpdateComment({ publicationId, commentId, comentario }) {
 async function handleDeleteComment({ publicationId, commentId }) {
   if (!authStore.currentUser) return
   await socialStore.deleteComment(publicationId, commentId, authStore.currentUser.id)
-}
-
-function openProfile(userId) {
-  router.push(`/profile/user/${userId}`)
 }
 
 onMounted(ensureData)
@@ -117,21 +111,6 @@ onMounted(ensureData)
       @comment-update="handleUpdateComment"
       @comment-delete="handleDeleteComment"
     />
-
-    <div class="surface-panel home-page-profiles">
-      <h3>Perfiles recientes</h3>
-      <div class="home-page-profiles-grid">
-        <button
-          v-for="user in socialStore.users.slice(0, 6)"
-          :key="user.id"
-          type="button"
-          class="home-page-profile-chip"
-          @click="openProfile(user.id)"
-        >
-          {{ user.username }}
-        </button>
-      </div>
-    </div>
   </section>
 </template>
 
@@ -147,36 +126,6 @@ onMounted(ensureData)
   justify-content: space-between;
   gap: 1rem;
   flex-wrap: wrap;
-}
-
-.home-page-profiles {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.home-page-profiles-grid {
-  display: flex;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-}
-
-.home-page-profile-chip {
-  border: 1px solid #39485d;
-  background: #1f2836;
-  color: white;
-  border-radius: 999px;
-  padding: 0.55rem 0.9rem;
-  cursor: pointer;
-  transition:
-    background-color 0.3s ease,
-    border-color 0.3s ease,
-    transform 0.3s ease,
-    box-shadow 0.3s ease;
-}
-
-.home-page-profile-chip:hover {
-  background: #263244;
-  border-color: #526680;
 }
 
 .surface-panel-error {

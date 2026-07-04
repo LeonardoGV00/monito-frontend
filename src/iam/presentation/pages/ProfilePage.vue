@@ -38,6 +38,7 @@ const isFollowingProfile = computed(() => Boolean(
   socialStore.isUserFollowed(profile.value.id, authStore.currentUser.id)
 ))
 const publications = computed(() => socialStore.getPublicationsForUser(route.params.id))
+const displayFollowersCount = computed(() => profile.value ? socialStore.getUserById(profile.value.id)?.followers ?? profile.value.followers : 0)
 
 function syncForm(user) {
   if (!user) return
@@ -151,7 +152,7 @@ watch(() => route.params.id, loadProfile, { immediate: true })
           <p class="muted">{{ profile.telefono || 'Sin teléfono registrado' }}</p>
           <div class="btn-row btn-row-top-space">
             <span class="pill">{{ profile.rol }}</span>
-            <span class="pill">{{ profile.followers }} seguidores</span>
+            <span class="pill">{{ displayFollowersCount }} seguidores</span>
             <button
               v-if="!isOwnProfile"
               type="button"
@@ -161,7 +162,7 @@ watch(() => route.params.id, loadProfile, { immediate: true })
               :aria-pressed="isFollowingProfile"
               @click="followProfile"
             >
-              {{ isFollowingProfile ? 'Siguiendo' : 'Seguir' }}
+              {{ isFollowingProfile ? 'Dejar de seguir' : 'Seguir' }}
             </button>
           </div>
         </div>

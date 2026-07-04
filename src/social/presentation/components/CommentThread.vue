@@ -59,6 +59,11 @@ function saveEdit(comment) {
 
 <template>
   <section class="comment-thread">
+    <div class="comment-thread-header">
+      <strong>Comentarios</strong>
+      <span class="muted">{{ comments.length }} publicación(es)</span>
+    </div>
+
     <div class="comment-thread-composer">
       <InitialsAvatar
         :name="currentUser?.username || 'Moñito'"
@@ -117,6 +122,17 @@ function saveEdit(comment) {
 <style scoped>
 .comment-thread {
   display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid #314155;
+  border-radius: 20px;
+  background: #141b26;
+}
+
+.comment-thread-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 1rem;
 }
 

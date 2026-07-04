@@ -14,12 +14,15 @@ function normalizeUser(raw = {}) {
     telefono: raw.telefono || '',
     picture: raw.picture || '',
     followers: Number(raw.followers || 0),
+    followersBase: Number(raw.followers || 0),
     fechaRegistro: raw.fechaRegistro || null
   }
 }
 
 function normalizePublication(raw = {}) {
   const publication = new PublicationEntity(raw)
+  publication.likes = Number(raw.likes || 0)
+  publication.likesBase = Number(raw.likes || 0)
   publication.multimedia = (raw.multimedia || []).map(item => ({
     tipo: item?.tipo || 'imagen',
     url: item?.url || '',
@@ -53,14 +56,31 @@ function matchPublication(publication, author, product, query) {
 }
 
 function interactionStorageKey(userId) {
-  return `monitonet.social.interactions.${userId || 'guest'}.v1`
+  return `monitonet.social.interactions.${userId || 'guest'}.v2`
+}
+
+function normalizeIdArray(value) {
+  return Array.isArray(value) ? value.map(String).filter(Boolean) : []
+}
+
+function normalizeNumberMap(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return Object.fromEntries(
+    Object.entries(value)
+      .map(([key, amount]) => [String(key), Number(amount || 0)])
+      .filter(([, amount]) => Number.isFinite(amount) && amount !== 0)
+  )
 }
 
 function readInteractionState(userId) {
   if (typeof window === 'undefined' || !userId) {
     return {
       likedPublicationIds: [],
-      followedUserIds: []
+      likedPublicationServerIds: [],
+      publicationLikeOffsets: {},
+      followedUserIds: [],
+      followedUserServerIds: [],
+      userFollowerOffsets: {}
     }
   }
 
@@ -69,23 +89,31 @@ function readInteractionState(userId) {
     if (!raw) {
       return {
         likedPublicationIds: [],
-        followedUserIds: []
+        likedPublicationServerIds: [],
+        publicationLikeOffsets: {},
+        followedUserIds: [],
+        followedUserServerIds: [],
+        userFollowerOffsets: {}
       }
     }
 
     const parsed = JSON.parse(raw)
     return {
-      likedPublicationIds: Array.isArray(parsed?.likedPublicationIds)
-        ? parsed.likedPublicationIds.map(String)
-        : [],
-      followedUserIds: Array.isArray(parsed?.followedUserIds)
-        ? parsed.followedUserIds.map(String)
-        : []
+      likedPublicationIds: normalizeIdArray(parsed?.likedPublicationIds),
+      likedPublicationServerIds: normalizeIdArray(parsed?.likedPublicationServerIds),
+      publicationLikeOffsets: normalizeNumberMap(parsed?.publicationLikeOffsets),
+      followedUserIds: normalizeIdArray(parsed?.followedUserIds),
+      followedUserServerIds: normalizeIdArray(parsed?.followedUserServerIds),
+      userFollowerOffsets: normalizeNumberMap(parsed?.userFollowerOffsets)
     }
   } catch {
     return {
       likedPublicationIds: [],
-      followedUserIds: []
+      likedPublicationServerIds: [],
+      publicationLikeOffsets: {},
+      followedUserIds: [],
+      followedUserServerIds: [],
+      userFollowerOffsets: {}
     }
   }
 }
@@ -97,7 +125,11 @@ function writeInteractionState(userId, state) {
 
   const payload = {
     likedPublicationIds: Array.from(new Set((state.likedPublicationIds || []).map(String))).filter(Boolean),
-    followedUserIds: Array.from(new Set((state.followedUserIds || []).map(String))).filter(Boolean)
+    likedPublicationServerIds: Array.from(new Set((state.likedPublicationServerIds || []).map(String))).filter(Boolean),
+    publicationLikeOffsets: normalizeNumberMap(state.publicationLikeOffsets),
+    followedUserIds: Array.from(new Set((state.followedUserIds || []).map(String))).filter(Boolean),
+    followedUserServerIds: Array.from(new Set((state.followedUserServerIds || []).map(String))).filter(Boolean),
+    userFollowerOffsets: normalizeNumberMap(state.userFollowerOffsets)
   }
 
   localStorage.setItem(interactionStorageKey(userId), JSON.stringify(payload))
@@ -109,6 +141,13 @@ function uniquePush(target, value) {
   if (!target.includes(normalized)) target.push(normalized)
 }
 
+function uniqueRemove(target, value) {
+  const normalized = String(value || '').trim()
+  if (!normalized) return
+  const index = target.indexOf(normalized)
+  if (index >= 0) target.splice(index, 1)
+}
+
 export const socialStore = reactive({
   publications: [],
   products: [],
@@ -118,26 +157,64 @@ export const socialStore = reactive({
   searchQuery: '',
   interactionUserId: '',
   likedPublicationIds: [],
+  likedPublicationServerIds: [],
+  publicationLikeOffsets: {},
   followedUserIds: [],
+  followedUserServerIds: [],
+  userFollowerOffsets: {},
 
   hydrateInteractions(userId) {
     this.interactionUserId = userId || ''
     const state = readInteractionState(this.interactionUserId)
     this.likedPublicationIds = state.likedPublicationIds
+    this.likedPublicationServerIds = state.likedPublicationServerIds
+    this.publicationLikeOffsets = state.publicationLikeOffsets
     this.followedUserIds = state.followedUserIds
+    this.followedUserServerIds = state.followedUserServerIds
+    this.userFollowerOffsets = state.userFollowerOffsets
+    this.applyInteractionCounters()
   },
 
   clearInteractionState() {
     this.interactionUserId = ''
     this.likedPublicationIds = []
+    this.likedPublicationServerIds = []
+    this.publicationLikeOffsets = {}
     this.followedUserIds = []
+    this.followedUserServerIds = []
+    this.userFollowerOffsets = {}
+    this.restoreBaseCounters()
   },
 
   persistInteractionState() {
     if (!this.interactionUserId) return
     writeInteractionState(this.interactionUserId, {
       likedPublicationIds: this.likedPublicationIds,
-      followedUserIds: this.followedUserIds
+      likedPublicationServerIds: this.likedPublicationServerIds,
+      publicationLikeOffsets: this.publicationLikeOffsets,
+      followedUserIds: this.followedUserIds,
+      followedUserServerIds: this.followedUserServerIds,
+      userFollowerOffsets: this.userFollowerOffsets
+    })
+  },
+
+  applyInteractionCounters() {
+    this.publications.forEach(publication => {
+      publication.likes = Number(publication.likesBase || 0) + Number(this.publicationLikeOffsets[publication.id] || 0)
+    })
+
+    this.users.forEach(user => {
+      user.followers = Number(user.followersBase || 0) + Number(this.userFollowerOffsets[user.id] || 0)
+    })
+  },
+
+  restoreBaseCounters() {
+    this.publications.forEach(publication => {
+      publication.likes = Number(publication.likesBase || 0)
+    })
+
+    this.users.forEach(user => {
+      user.followers = Number(user.followersBase || 0)
     })
   },
 
@@ -159,22 +236,74 @@ export const socialStore = reactive({
     return this.followedUserIds.includes(String(targetUserId))
   },
 
-  markPublicationLiked(publicationId, userId = this.interactionUserId) {
-    if (!userId) return
-    if (userId !== this.interactionUserId) {
-      this.hydrateInteractions(userId)
+  likePublication(publicationId, userId = this.interactionUserId) {
+    if (!userId) return false
+
+    const publication = this.getPublicationById(publicationId)
+    if (!publication) return false
+
+    const alreadyLiked = this.isPublicationLiked(publicationId, userId)
+    const serverHasLike = this.likedPublicationServerIds.includes(String(publicationId))
+
+    if (alreadyLiked) {
+      uniqueRemove(this.likedPublicationIds, publicationId)
+      publication.likes = Math.max(0, Number(publication.likes || 0) - 1)
+      this.publicationLikeOffsets[String(publicationId)] = -1
+      this.persistInteractionState()
+      return false
     }
+
+    if (!serverHasLike) {
+      return socialApi.likePublication(publicationId, { userId }).then(() => {
+        uniquePush(this.likedPublicationServerIds, publicationId)
+        uniquePush(this.likedPublicationIds, publicationId)
+        publication.likes = Number(publication.likes || 0) + 1
+        this.publicationLikeOffsets[String(publicationId)] = 0
+        this.persistInteractionState()
+        return true
+      })
+    }
+
     uniquePush(this.likedPublicationIds, publicationId)
+    publication.likes = Number(publication.likes || 0) + 1
+    this.publicationLikeOffsets[String(publicationId)] = 0
     this.persistInteractionState()
+    return true
   },
 
-  markUserFollowed(targetUserId, userId = this.interactionUserId) {
-    if (!userId) return
-    if (userId !== this.interactionUserId) {
-      this.hydrateInteractions(userId)
+  followUser(targetUserId, followerUserId = this.interactionUserId) {
+    if (!followerUserId) return false
+
+    const user = this.getUserById(targetUserId)
+    if (!user) return false
+
+    const alreadyFollowing = this.isUserFollowed(targetUserId, followerUserId)
+    const serverHasFollow = this.followedUserServerIds.includes(String(targetUserId))
+
+    if (alreadyFollowing) {
+      uniqueRemove(this.followedUserIds, targetUserId)
+      user.followers = Math.max(0, Number(user.followers || 0) - 1)
+      this.userFollowerOffsets[String(targetUserId)] = -1
+      this.persistInteractionState()
+      return false
     }
+
+    if (!serverHasFollow) {
+      return iamApi.followUser(targetUserId, followerUserId).then(() => {
+        uniquePush(this.followedUserServerIds, targetUserId)
+        uniquePush(this.followedUserIds, targetUserId)
+        user.followers = Number(user.followers || 0) + 1
+        this.userFollowerOffsets[String(targetUserId)] = 0
+        this.persistInteractionState()
+        return true
+      })
+    }
+
     uniquePush(this.followedUserIds, targetUserId)
+    user.followers = Number(user.followers || 0) + 1
+    this.userFollowerOffsets[String(targetUserId)] = 0
     this.persistInteractionState()
+    return true
   },
 
   async loadEverything() {
@@ -189,6 +318,7 @@ export const socialStore = reactive({
       this.publications = (pubs.data || []).map(normalizePublication)
       this.products = (products.data || []).map(normalizeProduct)
       this.users = (users.data || []).map(normalizeUser)
+      this.applyInteractionCounters()
     } catch (error) {
       this.error = error?.response?.data?.message || 'No fue posible cargar el contenido.'
       throw error
@@ -234,6 +364,7 @@ export const socialStore = reactive({
     } else {
       this.publications.unshift(normalized)
     }
+    this.applyInteractionCounters()
     return normalized
   },
 
@@ -243,6 +374,7 @@ export const socialStore = reactive({
     if (index >= 0) {
       this.publications.splice(index, 1, normalized)
     }
+    this.applyInteractionCounters()
     return normalized
   },
 
@@ -264,20 +396,6 @@ export const socialStore = reactive({
   async deletePublication(publicationId, requesterUserId) {
     await socialApi.deletePublication(publicationId, requesterUserId)
     this.removePublication(publicationId)
-  },
-
-  async likePublication(publicationId, userId) {
-    if (this.isPublicationLiked(publicationId, userId)) {
-      return false
-    }
-
-    await socialApi.likePublication(publicationId, { userId })
-    const publication = this.getPublicationById(publicationId)
-    if (publication) {
-      publication.likes += 1
-    }
-    this.markPublicationLiked(publicationId, userId)
-    return true
   },
 
   async addComment(publicationId, userId, comentario) {
@@ -319,19 +437,5 @@ export const socialStore = reactive({
     if (publication) {
       publication.comentarios = publication.comentarios.filter(item => item.id !== commentId)
     }
-  },
-
-  async followUser(targetUserId, followerUserId) {
-    if (this.isUserFollowed(targetUserId, followerUserId)) {
-      return false
-    }
-
-    await iamApi.followUser(targetUserId, followerUserId)
-    const user = this.getUserById(targetUserId)
-    if (user) {
-      user.followers += 1
-    }
-    this.markUserFollowed(targetUserId, followerUserId)
-    return true
   }
 })

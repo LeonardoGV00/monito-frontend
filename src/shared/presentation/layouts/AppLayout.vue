@@ -17,12 +17,10 @@ const searchQuery = computed({
 const canSearch = computed(() => route.name === 'home')
 
 function getInitials(name = '') {
-  const normalized = `${name}`.trim()
+  const normalized = `${name}`.trim().replace(/\s+/g, ' ')
   if (!normalized) return 'MN'
-  const parts = normalized.split(/\s+/).filter(Boolean)
-  const first = parts[0]?.[0] || 'M'
-  const second = parts.length > 1 ? parts[parts.length - 1]?.[0] || 'N' : normalized[1] || 'N'
-  return `${first}${second}`.toUpperCase()
+  const compact = normalized.replace(/[^\p{L}\p{N}]/gu, '')
+  return (compact.slice(0, 2) || 'MN').toUpperCase()
 }
 
 async function handleLogout() {

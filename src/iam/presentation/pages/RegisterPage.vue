@@ -89,7 +89,7 @@ async function handleSubmit() {
       <div class="form-grid">
         <label>
           Nombre de usuario
-          <input v-model="form.username" type="text" placeholder="ej. ana_torres" />
+          <input v-model="form.username" type="text" placeholder="Tu nombre de usuario" />
         </label>
 
         <label>

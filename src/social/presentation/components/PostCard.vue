@@ -116,6 +116,18 @@ function savePublication() {
   editingPublication.value = false
 }
 
+function toggleComments() {
+  commentsOpen.value = !commentsOpen.value
+}
+
+function handleLikeClick() {
+  emit('like', props.publication.id)
+}
+
+function handleFollowClick() {
+  emit('follow', props.author.id)
+}
+
 function handleCommentAdd(text) {
   emit('comment-add', { publicationId: props.publication.id, comentario: text })
 }
@@ -234,15 +246,15 @@ function handleCommentDelete(commentId) {
           type="button"
           class="secondary-btn"
           :class="{ 'action-toggle-liked': isLiked }"
-          :disabled="isLiked || !currentUser"
           :aria-pressed="isLiked"
-          @click="emit('like', publication.id)"
+          :disabled="!currentUser"
+          @click="handleLikeClick"
         >
           <i class="pi pi-heart"></i>
-          {{ isLiked ? 'Ya me gusta' : `Me gusta · ${publication.likes}` }}
+          {{ isLiked ? `Quitar me gusta · ${publication.likes}` : `Me gusta · ${publication.likes}` }}
         </button>
 
-        <button type="button" class="secondary-btn" :aria-expanded="commentsOpen" @click="commentsOpen = !commentsOpen">
+        <button type="button" class="secondary-btn" :aria-expanded="commentsOpen" @click="toggleComments">
           <i class="pi pi-comments"></i>
           {{ commentsOpen ? 'Ocultar comentarios' : 'Ver comentarios' }} ({{ publication.comentarios?.length || 0 }})
         </button>
@@ -252,16 +264,16 @@ function handleCommentDelete(commentId) {
           type="button"
           class="secondary-btn"
           :class="{ 'action-toggle-following': isFollowingAuthor }"
-          :disabled="isFollowingAuthor"
           :aria-pressed="isFollowingAuthor"
-          @click="emit('follow', author.id)"
+          :disabled="!currentUser"
+          @click="handleFollowClick"
         >
           <i class="pi pi-user-plus"></i>
-          {{ isFollowingAuthor ? 'Siguiendo' : 'Seguir' }}
+          {{ isFollowingAuthor ? 'Dejar de seguir' : 'Seguir' }}
         </button>
       </div>
 
-      <div v-if="commentsOpen" class="post-card-comments">
+      <div v-show="commentsOpen" class="post-card-comments">
         <CommentThread
           :publication="publication"
           :comments="publication.comentarios || []"
@@ -343,28 +355,38 @@ function handleCommentDelete(commentId) {
 }
 
 .post-card-interaction-row {
-  align-items: center;
   flex-wrap: wrap;
 }
 
 .post-card-comments {
-  padding: 1rem;
-  border-radius: 18px;
-  background: #1a2230;
-  border: 1px solid var(--surface-border);
+  margin-top: 0.35rem;
 }
 
 .post-card-editor {
   display: grid;
-  gap: 0.9rem;
+  gap: 0.85rem;
+  padding: 1rem;
+  border-radius: 20px;
+  border: 1px solid #314155;
+  background: #141b26;
 }
 
 .post-card-editor label {
   display: grid;
   gap: 0.45rem;
+  color: #e5edf7;
+}
+
+.post-card-editor .btn-row {
+  justify-content: flex-end;
 }
 
 .full-width-control {
   width: 100%;
+}
+
+.secondary-btn.action-toggle-liked,
+.secondary-btn.action-toggle-following {
+  border-color: transparent;
 }
 </style>
