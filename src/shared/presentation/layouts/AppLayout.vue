@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { authStore } from '../../../iam/application/auth.store'
 import { socialStore } from '../../../social/application/social.store'
@@ -27,8 +27,21 @@ function getInitials(name = '') {
 
 async function handleLogout() {
   await authStore.signOut()
+  socialStore.clearInteractionState()
   await router.push('/login')
 }
+
+watch(
+  () => authStore.currentUser?.id,
+  userId => {
+    if (userId) {
+      socialStore.hydrateInteractions(userId)
+    } else {
+      socialStore.clearInteractionState()
+    }
+  },
+  { immediate: true }
+)
 </script>
 
 <template>
@@ -56,7 +69,11 @@ async function handleLogout() {
       <div class="app-topbar-actions">
         <div v-if="authStore.currentUser" class="app-topbar-user">
           <div class="app-topbar-avatar">
-            <img v-if="authStore.currentUser.picture" :src="authStore.currentUser.picture" :alt="authStore.currentUser.username" />
+            <img
+              v-if="authStore.currentUser.picture"
+              :src="authStore.currentUser.picture"
+              :alt="authStore.currentUser.username"
+            />
             <span v-else>{{ getInitials(authStore.currentUser.username) }}</span>
           </div>
           <div class="app-topbar-user-meta">
@@ -65,7 +82,7 @@ async function handleLogout() {
           </div>
         </div>
 
-        <button class="secondary-btn" @click="handleLogout">
+        <button type="button" class="secondary-btn" @click="handleLogout">
           <i class="pi pi-sign-out"></i>
           Cerrar sesión
         </button>
@@ -84,9 +101,9 @@ async function handleLogout() {
   margin: 1rem auto 0;
   padding: 0.9rem 1rem;
   border-radius: 24px;
-  background: rgba(6, 12, 24, 0.8);
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  backdrop-filter: blur(16px);
+  background: #171e29;
+  border: 1px solid var(--surface-border);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.22);
   display: grid;
   gap: 1rem;
   grid-template-columns: auto 1fr auto;
@@ -108,10 +125,12 @@ async function handleLogout() {
   border-radius: 14px;
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, #60a5fa, #22c55e);
+  background: #d97706;
+  color: white;
   font-weight: 900;
   flex: 0 0 auto;
   overflow: hidden;
+  border: 1px solid #f59e0b;
 }
 
 .app-topbar-avatar img {
@@ -140,8 +159,16 @@ async function handleLogout() {
   gap: 0.7rem;
   padding: 0.8rem 1rem;
   border-radius: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  background: rgba(12, 21, 38, 0.9);
+  border: 1px solid var(--surface-border);
+  background: var(--surface-2);
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.search-box:hover {
+  border-color: #4b5f79;
 }
 
 .search-box i {

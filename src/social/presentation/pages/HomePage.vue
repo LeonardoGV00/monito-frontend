@@ -21,41 +21,40 @@ async function ensureData() {
 
 async function handleCreatePublication(payload) {
   await socialStore.createPublication(payload)
-  await socialStore.loadEverything()
 }
 
 async function handleEditPublication({ publicationId, payload }) {
   await socialStore.updatePublication(publicationId, payload)
-  await socialStore.loadEverything()
 }
 
 async function handleDeletePublication(publicationId) {
+  if (!authStore.currentUser) return
   await socialStore.deletePublication(publicationId, authStore.currentUser.id)
-  await socialStore.loadEverything()
 }
 
 async function handleLike(publicationId) {
+  if (!authStore.currentUser) return
   await socialStore.likePublication(publicationId, authStore.currentUser.id)
 }
 
 async function handleFollow(userId) {
+  if (!authStore.currentUser) return
   await socialStore.followUser(userId, authStore.currentUser.id)
-  await socialStore.loadEverything()
 }
 
 async function handleAddComment({ publicationId, comentario }) {
+  if (!authStore.currentUser) return
   await socialStore.addComment(publicationId, authStore.currentUser.id, comentario)
-  await socialStore.loadEverything()
 }
 
 async function handleUpdateComment({ publicationId, commentId, comentario }) {
+  if (!authStore.currentUser) return
   await socialStore.updateComment(publicationId, commentId, authStore.currentUser.id, comentario)
-  await socialStore.loadEverything()
 }
 
 async function handleDeleteComment({ publicationId, commentId }) {
+  if (!authStore.currentUser) return
   await socialStore.deleteComment(publicationId, commentId, authStore.currentUser.id)
-  await socialStore.loadEverything()
 }
 
 function openProfile(userId) {
@@ -69,14 +68,14 @@ onMounted(ensureData)
   <section class="home-page">
     <div class="surface-panel home-page-toolbar">
       <div>
-        <h2>Publicaciones</h2>
+        <h2 class="section-title">Publicaciones</h2>
         <p class="muted">
           {{ publications.length }} resultado(s)
           <span v-if="socialStore.searchQuery"> para "{{ socialStore.searchQuery }}"</span>
         </p>
       </div>
 
-      <button class="primary-btn" @click="composerVisible = true">
+      <button type="button" class="primary-btn" @click="composerVisible = true">
         <i class="pi pi-plus"></i>
         Nueva publicación
       </button>
@@ -92,7 +91,11 @@ onMounted(ensureData)
       {{ socialStore.error }}
     </div>
 
-    <div v-if="publications.length === 0" class="surface-panel muted">
+    <div v-if="socialStore.loading" class="surface-panel muted">
+      Cargando contenido...
+    </div>
+
+    <div v-else-if="publications.length === 0" class="surface-panel muted">
       No hay publicaciones que coincidan con la búsqueda.
     </div>
 
@@ -121,6 +124,7 @@ onMounted(ensureData)
         <button
           v-for="user in socialStore.users.slice(0, 6)"
           :key="user.id"
+          type="button"
           class="home-page-profile-chip"
           @click="openProfile(user.id)"
         >
@@ -157,15 +161,27 @@ onMounted(ensureData)
 }
 
 .home-page-profile-chip {
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  background: rgba(12, 21, 38, 0.88);
+  border: 1px solid #39485d;
+  background: #1f2836;
   color: white;
   border-radius: 999px;
   padding: 0.55rem 0.9rem;
   cursor: pointer;
+  transition:
+    background-color 0.3s ease,
+    border-color 0.3s ease,
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.home-page-profile-chip:hover {
+  background: #263244;
+  border-color: #526680;
 }
 
 .surface-panel-error {
-  border-color: rgba(239, 68, 68, 0.35);
+  border-color: #7c2d2d;
+  background: #4a1f1f;
+  color: #ffd7da;
 }
 </style>

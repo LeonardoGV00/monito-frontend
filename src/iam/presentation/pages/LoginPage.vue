@@ -22,7 +22,7 @@ async function handleSubmit() {
     await authStore.signIn(form.login.trim(), form.password)
     await router.push('/home')
   } catch (error) {
-    state.error = authStore.error || 'Revisa tus credenciales.'
+    state.error = authStore.error || error?.response?.data?.message || 'Revisa tus credenciales.'
   } finally {
     state.loading = false
   }
@@ -40,12 +40,16 @@ async function handleSubmit() {
         </div>
       </div>
 
+      <div class="auth-card-highlight">
+        Publica, comenta y sigue a otros usuarios en una experiencia clara y segura.
+      </div>
+
       <div v-if="state.error" class="error-banner">{{ state.error }}</div>
 
       <div class="form-grid">
         <label>
           Usuario o correo
-          <input v-model="form.login" type="text" placeholder="usuario@correo.com" />
+          <input v-model="form.login" type="text" placeholder="ej. ana_torres o correo@ejemplo.com" />
         </label>
 
         <label>
@@ -53,13 +57,14 @@ async function handleSubmit() {
           <input v-model="form.password" type="password" placeholder="Tu contraseña" />
         </label>
 
-        <button class="primary-btn" :disabled="state.loading" @click="handleSubmit">
+        <button type="button" class="primary-btn" :disabled="state.loading" @click="handleSubmit">
           {{ state.loading ? 'Ingresando...' : 'Ingresar' }}
         </button>
       </div>
 
       <p class="auth-card-footer">
-        ¿No tienes una cuenta? <RouterLink to="/register">Regístrate</RouterLink>
+        ¿No tienes una cuenta?
+        <RouterLink to="/register" class="auth-link">Regístrate</RouterLink>
       </p>
     </div>
   </section>
@@ -91,8 +96,10 @@ async function handleSubmit() {
   border-radius: 18px;
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, #60a5fa, #22c55e);
+  background: #d97706;
+  color: white;
   font-weight: 900;
+  border: 1px solid #f59e0b;
 }
 
 .auth-card h1 {
@@ -103,14 +110,24 @@ async function handleSubmit() {
   margin: 0.2rem 0 0;
 }
 
+.auth-card-highlight {
+  padding: 0.9rem 1rem;
+  border-radius: 18px;
+  border: 1px solid #3d4e65;
+  background: #1f2836;
+  color: #dbe7f8;
+}
+
 .error-banner {
   padding: 0.9rem 1rem;
   border-radius: 16px;
-  background: rgba(239, 68, 68, 0.15);
-  color: #fecaca;
+  background: #4a1f1f;
+  border: 1px solid #7c2d2d;
+  color: #ffd7da;
 }
 
 .auth-card-footer {
   text-align: center;
+  color: var(--text-soft);
 }
 </style>

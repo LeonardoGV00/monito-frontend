@@ -43,13 +43,70 @@ function matchPublication(publication, author, product, query) {
     publication.descripcion,
     product?.nombre,
     product?.categoria,
-    ...(publication.comentarios || []).map(comment => comment.comentario),
+    ...(publication.comentarios || []).map(comment => comment.comentario)
   ]
     .filter(Boolean)
     .join(' ')
     .toLowerCase()
 
   return haystack.includes(query.toLowerCase())
+}
+
+function interactionStorageKey(userId) {
+  return `monitonet.social.interactions.${userId || 'guest'}.v1`
+}
+
+function readInteractionState(userId) {
+  if (typeof window === 'undefined' || !userId) {
+    return {
+      likedPublicationIds: [],
+      followedUserIds: []
+    }
+  }
+
+  try {
+    const raw = localStorage.getItem(interactionStorageKey(userId))
+    if (!raw) {
+      return {
+        likedPublicationIds: [],
+        followedUserIds: []
+      }
+    }
+
+    const parsed = JSON.parse(raw)
+    return {
+      likedPublicationIds: Array.isArray(parsed?.likedPublicationIds)
+        ? parsed.likedPublicationIds.map(String)
+        : [],
+      followedUserIds: Array.isArray(parsed?.followedUserIds)
+        ? parsed.followedUserIds.map(String)
+        : []
+    }
+  } catch {
+    return {
+      likedPublicationIds: [],
+      followedUserIds: []
+    }
+  }
+}
+
+function writeInteractionState(userId, state) {
+  if (typeof window === 'undefined' || !userId) {
+    return
+  }
+
+  const payload = {
+    likedPublicationIds: Array.from(new Set((state.likedPublicationIds || []).map(String))).filter(Boolean),
+    followedUserIds: Array.from(new Set((state.followedUserIds || []).map(String))).filter(Boolean)
+  }
+
+  localStorage.setItem(interactionStorageKey(userId), JSON.stringify(payload))
+}
+
+function uniquePush(target, value) {
+  const normalized = String(value || '').trim()
+  if (!normalized) return
+  if (!target.includes(normalized)) target.push(normalized)
 }
 
 export const socialStore = reactive({
@@ -59,6 +116,67 @@ export const socialStore = reactive({
   loading: false,
   error: '',
   searchQuery: '',
+  interactionUserId: '',
+  likedPublicationIds: [],
+  followedUserIds: [],
+
+  hydrateInteractions(userId) {
+    this.interactionUserId = userId || ''
+    const state = readInteractionState(this.interactionUserId)
+    this.likedPublicationIds = state.likedPublicationIds
+    this.followedUserIds = state.followedUserIds
+  },
+
+  clearInteractionState() {
+    this.interactionUserId = ''
+    this.likedPublicationIds = []
+    this.followedUserIds = []
+  },
+
+  persistInteractionState() {
+    if (!this.interactionUserId) return
+    writeInteractionState(this.interactionUserId, {
+      likedPublicationIds: this.likedPublicationIds,
+      followedUserIds: this.followedUserIds
+    })
+  },
+
+  isPublicationLiked(publicationId, userId = this.interactionUserId) {
+    if (!userId || userId !== this.interactionUserId) {
+      const state = readInteractionState(userId)
+      return state.likedPublicationIds.includes(String(publicationId))
+    }
+
+    return this.likedPublicationIds.includes(String(publicationId))
+  },
+
+  isUserFollowed(targetUserId, userId = this.interactionUserId) {
+    if (!userId || userId !== this.interactionUserId) {
+      const state = readInteractionState(userId)
+      return state.followedUserIds.includes(String(targetUserId))
+    }
+
+    return this.followedUserIds.includes(String(targetUserId))
+  },
+
+  markPublicationLiked(publicationId, userId = this.interactionUserId) {
+    if (!userId) return
+    if (userId !== this.interactionUserId) {
+      this.hydrateInteractions(userId)
+    }
+    uniquePush(this.likedPublicationIds, publicationId)
+    this.persistInteractionState()
+  },
+
+  markUserFollowed(targetUserId, userId = this.interactionUserId) {
+    if (!userId) return
+    if (userId !== this.interactionUserId) {
+      this.hydrateInteractions(userId)
+    }
+    uniquePush(this.followedUserIds, targetUserId)
+    this.persistInteractionState()
+  },
+
   async loadEverything() {
     this.loading = true
     this.error = ''
@@ -78,20 +196,25 @@ export const socialStore = reactive({
       this.loading = false
     }
   },
+
   getUserById(userId) {
     return this.users.find(user => user.id === userId) || null
   },
+
   getProductById(productId) {
     return this.products.find(product => product.id === productId) || null
   },
+
   getPublicationById(publicationId) {
     return this.publications.find(publication => publication.id === publicationId) || null
   },
+
   getPublicationsForUser(userId) {
     return this.publications
       .filter(publication => publication.autorId === userId)
       .sort((a, b) => new Date(b.fechaPublicacion || 0) - new Date(a.fechaPublicacion || 0))
   },
+
   getFilteredPublications(query = this.searchQuery) {
     const normalizedQuery = (query || '').trim().toLowerCase()
     return [...this.publications]
@@ -102,6 +225,7 @@ export const socialStore = reactive({
         return matchPublication(publication, author, product, normalizedQuery)
       })
   },
+
   upsertPublication(rawPublication) {
     const normalized = normalizePublication(rawPublication)
     const index = this.publications.findIndex(item => item.id === normalized.id)
@@ -112,6 +236,7 @@ export const socialStore = reactive({
     }
     return normalized
   },
+
   replacePublication(publicationId, rawPublication) {
     const normalized = normalizePublication(rawPublication)
     const index = this.publications.findIndex(item => item.id === publicationId)
@@ -120,27 +245,41 @@ export const socialStore = reactive({
     }
     return normalized
   },
+
   removePublication(publicationId) {
     this.publications = this.publications.filter(item => item.id !== publicationId)
   },
+
   async createPublication(payload) {
     const response = await socialApi.createPublication(payload)
     return this.upsertPublication(response.data)
   },
+
   async updatePublication(publicationId, payload) {
     const response = await socialApi.updatePublication(publicationId, payload)
     const updated = response.data.publication || response.data
     return this.replacePublication(publicationId, updated)
   },
+
   async deletePublication(publicationId, requesterUserId) {
     await socialApi.deletePublication(publicationId, requesterUserId)
     this.removePublication(publicationId)
   },
+
   async likePublication(publicationId, userId) {
+    if (this.isPublicationLiked(publicationId, userId)) {
+      return false
+    }
+
     await socialApi.likePublication(publicationId, { userId })
     const publication = this.getPublicationById(publicationId)
-    if (publication) publication.likes += 1
+    if (publication) {
+      publication.likes += 1
+    }
+    this.markPublicationLiked(publicationId, userId)
+    return true
   },
+
   async addComment(publicationId, userId, comentario) {
     const response = await socialApi.addComment(publicationId, { userId, comentario })
     const publication = this.getPublicationById(publicationId)
@@ -157,6 +296,7 @@ export const socialStore = reactive({
     }
     return response.data
   },
+
   async updateComment(publicationId, commentId, userId, comentario) {
     const response = await socialApi.updateComment(publicationId, commentId, { userId, comentario })
     const publication = this.getPublicationById(publicationId)
@@ -172,6 +312,7 @@ export const socialStore = reactive({
     }
     return updated
   },
+
   async deleteComment(publicationId, commentId, requesterUserId) {
     await socialApi.deleteComment(publicationId, commentId, requesterUserId)
     const publication = this.getPublicationById(publicationId)
@@ -179,9 +320,18 @@ export const socialStore = reactive({
       publication.comentarios = publication.comentarios.filter(item => item.id !== commentId)
     }
   },
+
   async followUser(targetUserId, followerUserId) {
+    if (this.isUserFollowed(targetUserId, followerUserId)) {
+      return false
+    }
+
     await iamApi.followUser(targetUserId, followerUserId)
     const user = this.getUserById(targetUserId)
-    if (user) user.followers += 1
+    if (user) {
+      user.followers += 1
+    }
+    this.markUserFollowed(targetUserId, followerUserId)
+    return true
   }
 })

@@ -1,17 +1,19 @@
 <script setup>
-import { reactive } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useRouter, RouterLink } from 'vue-router'
 import { authStore } from '../../application/auth.store'
 import { fileToDataUrl } from '../../../shared/infrastructure/file-utils'
 
 const router = useRouter()
+const pictureFileInput = ref(null)
 
 const form = reactive({
   username: '',
   email: '',
   password: '',
   telefono: '',
-  picture: ''
+  pictureUrl: '',
+  pictureDataUrl: ''
 })
 
 const state = reactive({
@@ -19,10 +21,32 @@ const state = reactive({
   error: ''
 })
 
+const usingLocalPicture = computed(() => Boolean(form.pictureDataUrl))
+const usingPictureLink = computed(() => Boolean(form.pictureUrl.trim()))
+
+function clearFileInput() {
+  if (pictureFileInput.value) {
+    pictureFileInput.value.value = ''
+  }
+}
+
+function onPictureLinkInput() {
+  if (form.pictureUrl.trim()) {
+    form.pictureDataUrl = ''
+    clearFileInput()
+  }
+}
+
 async function handleFileChange(event) {
   const file = event.target.files?.[0]
-  if (!file) return
-  form.picture = await fileToDataUrl(file)
+  if (!file) {
+    form.pictureDataUrl = ''
+    return
+  }
+
+  form.pictureDataUrl = await fileToDataUrl(file)
+  form.pictureUrl = ''
+  clearFileInput()
 }
 
 async function handleSubmit() {
@@ -34,7 +58,7 @@ async function handleSubmit() {
       email: form.email.trim(),
       password: form.password,
       telefono: form.telefono.trim(),
-      picture: form.picture
+      picture: form.pictureDataUrl || form.pictureUrl.trim()
     })
     await router.push('/home')
   } catch {
@@ -56,12 +80,16 @@ async function handleSubmit() {
         </div>
       </div>
 
+      <div class="auth-card-highlight">
+        Completa tus datos para entrar a la red social y mostrar tus productos o reseñas.
+      </div>
+
       <div v-if="state.error" class="error-banner">{{ state.error }}</div>
 
       <div class="form-grid">
         <label>
           Nombre de usuario
-          <input v-model="form.username" type="text" placeholder="tu_usuario" />
+          <input v-model="form.username" type="text" placeholder="ej. ana_torres" />
         </label>
 
         <label>
@@ -76,26 +104,43 @@ async function handleSubmit() {
 
         <label>
           Teléfono opcional
-          <input v-model="form.telefono" type="text" placeholder="+51 ..." />
+          <input v-model="form.telefono" type="text" />
         </label>
 
         <label>
           Foto de perfil opcional
-          <input type="file" accept="image/*" @change="handleFileChange" />
+          <input
+            ref="pictureFileInput"
+            type="file"
+            accept="image/*"
+            :disabled="usingPictureLink"
+            @change="handleFileChange"
+          />
         </label>
 
         <label>
           O pega un enlace de imagen
-          <input v-model="form.picture" type="text" placeholder="https://..." />
+          <input
+            v-model="form.pictureUrl"
+            type="text"
+            placeholder="https://..."
+            :disabled="usingLocalPicture"
+            @input="onPictureLinkInput"
+          />
         </label>
 
-        <button class="primary-btn" :disabled="state.loading" @click="handleSubmit">
+        <small v-if="usingLocalPicture || usingPictureLink">
+          Solo puedes usar una opción de imagen: archivo local o enlace.
+        </small>
+
+        <button type="button" class="primary-btn" :disabled="state.loading" @click="handleSubmit">
           {{ state.loading ? 'Creando...' : 'Registrarme' }}
         </button>
       </div>
 
       <p class="auth-card-footer">
-        ¿Ya tienes una cuenta? <RouterLink to="/login">Inicia sesión</RouterLink>
+        ¿Ya tienes una cuenta?
+        <RouterLink to="/login" class="auth-link">Inicia sesión</RouterLink>
       </p>
     </div>
   </section>
@@ -127,8 +172,10 @@ async function handleSubmit() {
   border-radius: 18px;
   display: grid;
   place-items: center;
-  background: linear-gradient(135deg, #60a5fa, #22c55e);
+  background: #d97706;
+  color: white;
   font-weight: 900;
+  border: 1px solid #f59e0b;
 }
 
 .auth-card h1 {
@@ -139,14 +186,29 @@ async function handleSubmit() {
   margin: 0.2rem 0 0;
 }
 
+.auth-card-highlight {
+  padding: 0.9rem 1rem;
+  border-radius: 18px;
+  border: 1px solid #3d4e65;
+  background: #1f2836;
+  color: #dbe7f8;
+}
+
 .error-banner {
   padding: 0.9rem 1rem;
   border-radius: 16px;
-  background: rgba(239, 68, 68, 0.15);
-  color: #fecaca;
+  background: #4a1f1f;
+  border: 1px solid #7c2d2d;
+  color: #ffd7da;
 }
 
 .auth-card-footer {
   text-align: center;
+  color: var(--text-soft);
+}
+
+small {
+  display: block;
+  margin-top: -0.3rem;
 }
 </style>

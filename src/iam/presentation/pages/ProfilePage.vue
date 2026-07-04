@@ -12,6 +12,8 @@ const route = useRoute()
 const router = useRouter()
 
 const profile = ref(null)
+const pictureFileInput = ref(null)
+
 const state = reactive({
   loading: false,
   error: '',
@@ -23,11 +25,18 @@ const form = reactive({
   username: '',
   email: '',
   telefono: '',
-  picture: ''
+  pictureUrl: '',
+  pictureDataUrl: ''
 })
 
 const isOwnProfile = computed(() => authStore.currentUser?.id === profile.value?.id)
 const isAdmin = computed(() => authStore.currentUser?.rol === 'admin')
+const isFollowingProfile = computed(() => Boolean(
+  profile.value &&
+  authStore.currentUser &&
+  profile.value.id !== authStore.currentUser.id &&
+  socialStore.isUserFollowed(profile.value.id, authStore.currentUser.id)
+))
 const publications = computed(() => socialStore.getPublicationsForUser(route.params.id))
 
 function syncForm(user) {
@@ -35,7 +44,11 @@ function syncForm(user) {
   form.username = user.username || ''
   form.email = user.email || ''
   form.telefono = user.telefono || ''
-  form.picture = user.picture || ''
+  form.pictureUrl = user.picture || ''
+  form.pictureDataUrl = ''
+  if (pictureFileInput.value) {
+    pictureFileInput.value.value = ''
+  }
 }
 
 async function loadProfile() {
@@ -62,13 +75,33 @@ async function loadProfile() {
   }
 }
 
+function clearFileInput() {
+  if (pictureFileInput.value) {
+    pictureFileInput.value.value = ''
+  }
+}
+
+function onPictureLinkInput() {
+  if (form.pictureUrl.trim()) {
+    form.pictureDataUrl = ''
+    clearFileInput()
+  }
+}
+
 async function handleFileChange(event) {
   const file = event.target.files?.[0]
-  if (!file) return
-  form.picture = await fileToDataUrl(file)
+  if (!file) {
+    form.pictureDataUrl = ''
+    return
+  }
+
+  form.pictureDataUrl = await fileToDataUrl(file)
+  form.pictureUrl = ''
+  clearFileInput()
 }
 
 async function saveProfile() {
+  if (!profile.value || !authStore.currentUser) return
   state.saving = true
   state.error = ''
   try {
@@ -77,10 +110,11 @@ async function saveProfile() {
       username: form.username.trim(),
       email: form.email.trim(),
       telefono: form.telefono.trim(),
-      picture: form.picture
+      picture: form.pictureDataUrl || form.pictureUrl.trim()
     })
     profile.value = updated
     await socialStore.loadEverything()
+    profile.value = socialStore.getUserById(updated.id) || updated
   } catch {
     state.error = authStore.error || 'No fue posible actualizar el perfil.'
   } finally {
@@ -89,10 +123,11 @@ async function saveProfile() {
 }
 
 async function followProfile() {
+  if (!profile.value || !authStore.currentUser) return
   state.following = true
   try {
-    await authStore.followUser(profile.value.id)
-    await socialStore.loadEverything()
+    await socialStore.followUser(profile.value.id, authStore.currentUser.id)
+    profile.value = socialStore.getUserById(profile.value.id) || profile.value
   } finally {
     state.following = false
   }
@@ -105,10 +140,12 @@ watch(() => route.params.id, loadProfile, { immediate: true })
   <section class="surface-panel profile-page">
     <div v-if="state.error" class="error-banner">{{ state.error }}</div>
 
-    <div v-if="profile" class="profile-page-grid">
+    <div v-if="state.loading" class="muted">Cargando perfil...</div>
+
+    <div v-else-if="profile" class="profile-page-grid">
       <div class="profile-page-summary">
         <InitialsAvatar :name="profile.username" :picture="profile.picture" :size="96" />
-        <div>
+        <div class="profile-page-summary-body">
           <h2>{{ profile.username }}</h2>
           <p class="muted">{{ profile.email }}</p>
           <p class="muted">{{ profile.telefono || 'Sin teléfono registrado' }}</p>
@@ -117,11 +154,14 @@ watch(() => route.params.id, loadProfile, { immediate: true })
             <span class="pill">{{ profile.followers }} seguidores</span>
             <button
               v-if="!isOwnProfile"
+              type="button"
               class="secondary-btn"
-              :disabled="state.following"
+              :class="{ 'action-toggle-following': isFollowingProfile }"
+              :disabled="state.following || isFollowingProfile"
+              :aria-pressed="isFollowingProfile"
               @click="followProfile"
             >
-              Seguir
+              {{ isFollowingProfile ? 'Siguiendo' : 'Seguir' }}
             </button>
           </div>
         </div>
@@ -147,20 +187,36 @@ watch(() => route.params.id, loadProfile, { immediate: true })
           </label>
 
           <label>
-            Foto de perfil
-            <input type="file" accept="image/*" @change="handleFileChange" />
+            Foto de perfil opcional
+            <input
+              ref="pictureFileInput"
+              type="file"
+              accept="image/*"
+              :disabled="Boolean(form.pictureUrl.trim())"
+              @change="handleFileChange"
+            />
           </label>
 
           <label>
             O pega un enlace de imagen
-            <input v-model="form.picture" type="text" />
+            <input
+              v-model="form.pictureUrl"
+              type="text"
+              placeholder="https://..."
+              :disabled="Boolean(form.pictureDataUrl)"
+              @input="onPictureLinkInput"
+            />
           </label>
 
+          <small v-if="form.pictureDataUrl || form.pictureUrl.trim()">
+            Solo puedes usar una opción de imagen: archivo local o enlace.
+          </small>
+
           <div class="btn-row">
-            <button class="primary-btn" :disabled="state.saving" @click="saveProfile">
+            <button type="button" class="primary-btn" :disabled="state.saving" @click="saveProfile">
               {{ state.saving ? 'Guardando...' : 'Guardar cambios' }}
             </button>
-            <button class="ghost-btn" @click="router.push('/home')">Volver al inicio</button>
+            <button type="button" class="ghost-btn" @click="router.push('/home')">Volver al inicio</button>
           </div>
         </div>
       </div>
@@ -177,18 +233,16 @@ watch(() => route.params.id, loadProfile, { immediate: true })
           :current-user="authStore.currentUser"
           :is-admin="isAdmin"
           :get-user-by-id="socialStore.getUserById"
-          @like="socialStore.likePublication(publication.id, authStore.currentUser.id)"
-          @follow="socialStore.followUser($event, authStore.currentUser.id)"
-          @edit="async ({ publicationId, payload }) => { await socialStore.updatePublication(publicationId, payload); await socialStore.loadEverything() }"
-          @delete="async publicationId => { await socialStore.deletePublication(publicationId, authStore.currentUser.id); await socialStore.loadEverything() }"
-          @comment-add="async ({ publicationId, comentario }) => { await socialStore.addComment(publicationId, authStore.currentUser.id, comentario); await socialStore.loadEverything() }"
-          @comment-update="async ({ publicationId, commentId, comentario }) => { await socialStore.updateComment(publicationId, commentId, authStore.currentUser.id, comentario); await socialStore.loadEverything() }"
-          @comment-delete="async ({ publicationId, commentId }) => { await socialStore.deleteComment(publicationId, commentId, authStore.currentUser.id); await socialStore.loadEverything() }"
+          @like="publicationId => socialStore.likePublication(publicationId, authStore.currentUser.id)"
+          @follow="userId => socialStore.followUser(userId, authStore.currentUser.id)"
+          @edit="async ({ publicationId, payload }) => { await socialStore.updatePublication(publicationId, payload) }"
+          @delete="async publicationId => { await socialStore.deletePublication(publicationId, authStore.currentUser.id) }"
+          @comment-add="async ({ publicationId, comentario }) => { await socialStore.addComment(publicationId, authStore.currentUser.id, comentario) }"
+          @comment-update="async ({ publicationId, commentId, comentario }) => { await socialStore.updateComment(publicationId, commentId, authStore.currentUser.id, comentario) }"
+          @comment-delete="async ({ publicationId, commentId }) => { await socialStore.deleteComment(publicationId, commentId, authStore.currentUser.id) }"
         />
       </div>
     </div>
-
-    <div v-else class="muted">Cargando perfil...</div>
   </section>
 </template>
 
@@ -210,6 +264,11 @@ watch(() => route.params.id, loadProfile, { immediate: true })
   flex-wrap: wrap;
 }
 
+.profile-page-summary-body {
+  display: grid;
+  gap: 0.35rem;
+}
+
 .profile-page-editor,
 .profile-page-feed {
   display: grid;
@@ -219,8 +278,9 @@ watch(() => route.params.id, loadProfile, { immediate: true })
 .error-banner {
   padding: 0.9rem 1rem;
   border-radius: 16px;
-  background: rgba(239, 68, 68, 0.15);
-  color: #fecaca;
+  background: #4a1f1f;
+  border: 1px solid #7c2d2d;
+  color: #ffd7da;
 }
 
 .btn-row-top-space {

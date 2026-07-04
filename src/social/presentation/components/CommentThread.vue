@@ -69,7 +69,7 @@ function saveEdit(comment) {
         <strong>{{ currentUser?.username || 'Invitado' }}</strong>
         <textarea v-model="draft" placeholder="Escribe un comentario"></textarea>
         <div class="btn-row comment-thread-composer-actions">
-          <button class="primary-btn" @click="submitComment">Comentar</button>
+          <button type="button" class="primary-btn" @click="submitComment">Comentar</button>
         </div>
       </div>
     </div>
@@ -92,10 +92,10 @@ function saveEdit(comment) {
         </div>
 
         <div v-if="canManageComment(comment)" class="comment-item-actions">
-          <button class="icon-btn" title="Editar comentario" @click="startEdit(comment)">
+          <button type="button" class="icon-btn" title="Editar comentario" @click="startEdit(comment)">
             <i class="pi pi-pencil"></i>
           </button>
-          <button class="icon-btn danger" title="Eliminar comentario" @click="$emit('delete', comment.id)">
+          <button type="button" class="icon-btn danger" title="Eliminar comentario" @click="$emit('delete', comment.id)">
             <i class="pi pi-trash"></i>
           </button>
         </div>
@@ -104,8 +104,8 @@ function saveEdit(comment) {
       <div v-if="editingCommentId === comment.id" class="comment-item-edit">
         <textarea v-model="editingText"></textarea>
         <div class="btn-row">
-          <button class="primary-btn" @click="saveEdit(comment)">Guardar</button>
-          <button class="ghost-btn" @click="cancelEdit">Cancelar</button>
+          <button type="button" class="primary-btn" @click="saveEdit(comment)">Guardar</button>
+          <button type="button" class="ghost-btn" @click="cancelEdit">Cancelar</button>
         </div>
       </div>
 
@@ -125,6 +125,10 @@ function saveEdit(comment) {
   grid-template-columns: auto 1fr;
   gap: 0.9rem;
   align-items: start;
+  padding: 0.95rem;
+  border: 1px solid var(--surface-border);
+  background: #1a2230;
+  border-radius: 18px;
 }
 
 .comment-thread-composer-body {
@@ -137,8 +141,8 @@ function saveEdit(comment) {
 }
 
 .comment-item {
-  padding: 0.9rem 0;
-  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  padding: 1rem 0;
+  border-top: 1px solid #2f3d50;
 }
 
 .comment-item-header {
@@ -165,12 +169,12 @@ function saveEdit(comment) {
 }
 
 .comment-item-actions .danger {
-  color: #fecaca;
+  color: #ffd4d8;
 }
 
 .comment-item-text {
   margin: 0.7rem 0 0 3.2rem;
-  color: #eff6ff;
+  color: #f3efe9;
   white-space: pre-wrap;
   word-break: break-word;
 }

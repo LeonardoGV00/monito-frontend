@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { authStore } from '../../../iam/application/auth.store'
 import { fileToDataUrl } from '../../../shared/infrastructure/file-utils'
 
@@ -10,11 +10,14 @@ const props = defineProps({
 
 const emit = defineEmits(['update:visible', 'submit'])
 
+const fileInput = ref(null)
+
 const form = reactive({
   productoRelacionadoId: '',
   titulo: '',
   descripcion: '',
-  mediaUrl: ''
+  mediaUrl: '',
+  mediaDataUrl: ''
 })
 
 const selectedProductOptions = computed(() => props.products.map(product => ({
@@ -22,11 +25,18 @@ const selectedProductOptions = computed(() => props.products.map(product => ({
   value: product.id
 })))
 
+const usingLocalFile = computed(() => Boolean(form.mediaDataUrl))
+const usingLink = computed(() => Boolean(form.mediaUrl.trim()))
+
 function resetForm() {
   form.productoRelacionadoId = props.products[0]?.id || ''
   form.titulo = ''
   form.descripcion = ''
   form.mediaUrl = ''
+  form.mediaDataUrl = ''
+  if (fileInput.value) {
+    fileInput.value.value = ''
+  }
 }
 
 watch(
@@ -38,18 +48,38 @@ watch(
   }
 )
 
+function clearFileInput() {
+  if (fileInput.value) {
+    fileInput.value.value = ''
+  }
+}
+
+function onMediaLinkInput() {
+  if (form.mediaUrl.trim()) {
+    form.mediaDataUrl = ''
+    clearFileInput()
+  }
+}
+
 async function handleFileChange(event) {
   const file = event.target.files?.[0]
-  if (!file) return
-  form.mediaUrl = await fileToDataUrl(file)
+  if (!file) {
+    form.mediaDataUrl = ''
+    return
+  }
+
+  form.mediaDataUrl = await fileToDataUrl(file)
+  form.mediaUrl = ''
+  clearFileInput()
 }
 
 function submit() {
   if (!authStore.currentUser) return
   if (!form.productoRelacionadoId || !form.titulo.trim() || !form.descripcion.trim()) return
 
-  const multimedia = form.mediaUrl
-    ? [{ tipo: 'imagen', url: form.mediaUrl, formato: 'image/*' }]
+  const mediaUrl = form.mediaDataUrl || form.mediaUrl.trim()
+  const multimedia = mediaUrl
+    ? [{ tipo: 'imagen', url: mediaUrl, formato: 'image/*' }]
     : []
 
   emit('submit', {
@@ -96,17 +126,33 @@ function submit() {
 
       <label>
         Imagen opcional
-        <input type="file" accept="image/*" @change="handleFileChange" />
+        <input
+          ref="fileInput"
+          type="file"
+          accept="image/*"
+          :disabled="usingLink"
+          @change="handleFileChange"
+        />
       </label>
 
       <label>
         Enlace de imagen opcional
-        <input v-model="form.mediaUrl" type="text" placeholder="https://..." />
+        <input
+          v-model="form.mediaUrl"
+          type="text"
+          placeholder="https://..."
+          :disabled="usingLocalFile"
+          @input="onMediaLinkInput"
+        />
       </label>
 
+      <small v-if="usingLocalFile || usingLink">
+        Solo puedes usar una fuente de imagen por publicación.
+      </small>
+
       <div class="btn-row btn-row-end">
-        <button class="ghost-btn" @click="$emit('update:visible', false)">Cancelar</button>
-        <button class="primary-btn" @click="submit">Publicar</button>
+        <button type="button" class="ghost-btn" @click="$emit('update:visible', false)">Cancelar</button>
+        <button type="button" class="primary-btn" @click="submit">Publicar</button>
       </div>
     </div>
   </pv-dialog>

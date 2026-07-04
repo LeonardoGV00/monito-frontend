@@ -1,5 +1,7 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
+import { socialStore } from '../../application/social.store'
+import { fileToDataUrl } from '../../../shared/infrastructure/file-utils'
 import InitialsAvatar from './InitialsAvatar.vue'
 import CommentThread from './CommentThread.vue'
 
@@ -17,14 +19,24 @@ const emit = defineEmits(['like', 'follow', 'edit', 'delete', 'comment-add', 'co
 
 const commentsOpen = ref(false)
 const editingPublication = ref(false)
-const publicationDraft = ref({
-  titulo: props.publication.titulo,
-  descripcion: props.publication.descripcion,
-  productoRelacionadoId: props.publication.productoRelacionadoId,
-  mediaUrl: props.publication.multimedia?.[0]?.url || ''
+const editFileInput = ref(null)
+
+const publicationDraft = reactive({
+  titulo: '',
+  descripcion: '',
+  productoRelacionadoId: '',
+  mediaUrl: '',
+  mediaDataUrl: ''
 })
 
 const mainMedia = computed(() => props.publication.multimedia?.[0] || null)
+const isLiked = computed(() => Boolean(props.currentUser && socialStore.isPublicationLiked(props.publication.id, props.currentUser.id)))
+const isFollowingAuthor = computed(() => Boolean(
+  props.author &&
+  props.currentUser &&
+  props.author.id !== props.currentUser.id &&
+  socialStore.isUserFollowed(props.author.id, props.currentUser.id)
+))
 
 const productOptions = computed(() => props.products.map(product => ({
   label: `${product.nombre} — ${product.categoria}`,
@@ -41,13 +53,19 @@ function canManagePublication() {
   return props.isAdmin || props.currentUser.id === props.publication.autorId
 }
 
-function startEditPublication() {
-  publicationDraft.value = {
-    titulo: props.publication.titulo,
-    descripcion: props.publication.descripcion,
-    productoRelacionadoId: props.publication.productoRelacionadoId,
-    mediaUrl: props.publication.multimedia?.[0]?.url || ''
+function resetDraft() {
+  publicationDraft.titulo = props.publication.titulo
+  publicationDraft.descripcion = props.publication.descripcion
+  publicationDraft.productoRelacionadoId = props.publication.productoRelacionadoId
+  publicationDraft.mediaUrl = props.publication.multimedia?.[0]?.url || ''
+  publicationDraft.mediaDataUrl = ''
+  if (editFileInput.value) {
+    editFileInput.value.value = ''
   }
+}
+
+function startEditPublication() {
+  resetDraft()
   editingPublication.value = true
 }
 
@@ -55,17 +73,43 @@ function cancelEditPublication() {
   editingPublication.value = false
 }
 
+function clearEditFileInput() {
+  if (editFileInput.value) {
+    editFileInput.value.value = ''
+  }
+}
+
+async function handleEditFileChange(event) {
+  const file = event.target.files?.[0]
+  if (!file) {
+    publicationDraft.mediaDataUrl = ''
+    return
+  }
+
+  publicationDraft.mediaDataUrl = await fileToDataUrl(file)
+  publicationDraft.mediaUrl = ''
+  clearEditFileInput()
+}
+
+function onEditMediaLinkInput() {
+  if (publicationDraft.mediaUrl.trim()) {
+    publicationDraft.mediaDataUrl = ''
+    clearEditFileInput()
+  }
+}
+
 function savePublication() {
+  const mediaUrl = publicationDraft.mediaDataUrl || publicationDraft.mediaUrl.trim()
   emit('edit', {
     publicationId: props.publication.id,
     payload: {
       requesterUserId: props.currentUser?.id || '',
       autorId: props.publication.autorId,
-      productoRelacionadoId: publicationDraft.value.productoRelacionadoId,
-      titulo: publicationDraft.value.titulo,
-      descripcion: publicationDraft.value.descripcion,
-      multimedia: publicationDraft.value.mediaUrl
-        ? [{ tipo: 'imagen', url: publicationDraft.value.mediaUrl, formato: 'image/*' }]
+      productoRelacionadoId: publicationDraft.productoRelacionadoId,
+      titulo: publicationDraft.titulo,
+      descripcion: publicationDraft.descripcion,
+      multimedia: mediaUrl
+        ? [{ tipo: 'imagen', url: mediaUrl, formato: 'image/*' }]
         : []
     }
   })
@@ -107,10 +151,10 @@ function handleCommentDelete(commentId) {
       </div>
 
       <div v-if="canManagePublication()" class="post-card-actions">
-        <button class="icon-btn" title="Editar publicación" @click="startEditPublication">
+        <button type="button" class="icon-btn" title="Editar publicación" @click="startEditPublication">
           <i class="pi pi-pencil"></i>
         </button>
-        <button class="icon-btn danger" title="Eliminar publicación" @click="emit('delete', publication.id)">
+        <button type="button" class="icon-btn danger" title="Eliminar publicación" @click="emit('delete', publication.id)">
           <i class="pi pi-trash"></i>
         </button>
       </div>
@@ -128,21 +172,46 @@ function handleCommentDelete(commentId) {
           class="full-width-control"
         />
       </label>
+
       <label>
         Título
         <input v-model="publicationDraft.titulo" type="text" />
       </label>
+
       <label>
         Descripción
         <textarea v-model="publicationDraft.descripcion"></textarea>
       </label>
+
       <label>
-        Imagen (enlace o base64)
-        <input v-model="publicationDraft.mediaUrl" type="text" />
+        Imagen opcional
+        <input
+          ref="editFileInput"
+          type="file"
+          accept="image/*"
+          :disabled="Boolean(publicationDraft.mediaUrl.trim())"
+          @change="handleEditFileChange"
+        />
       </label>
+
+      <label>
+        Enlace de imagen opcional
+        <input
+          v-model="publicationDraft.mediaUrl"
+          type="text"
+          placeholder="https://..."
+          :disabled="Boolean(publicationDraft.mediaDataUrl)"
+          @input="onEditMediaLinkInput"
+        />
+      </label>
+
+      <small v-if="publicationDraft.mediaDataUrl || publicationDraft.mediaUrl.trim()">
+        Solo puedes usar una fuente de imagen.
+      </small>
+
       <div class="btn-row">
-        <button class="primary-btn" @click="savePublication">Guardar</button>
-        <button class="ghost-btn" @click="cancelEditPublication">Cancelar</button>
+        <button type="button" class="primary-btn" @click="savePublication">Guardar</button>
+        <button type="button" class="ghost-btn" @click="cancelEditPublication">Cancelar</button>
       </div>
     </div>
 
@@ -161,23 +230,34 @@ function handleCommentDelete(commentId) {
       </div>
 
       <div class="post-card-interaction-row">
-        <button class="secondary-btn" @click="emit('like', publication.id)">
+        <button
+          type="button"
+          class="secondary-btn"
+          :class="{ 'action-toggle-liked': isLiked }"
+          :disabled="isLiked || !currentUser"
+          :aria-pressed="isLiked"
+          @click="emit('like', publication.id)"
+        >
           <i class="pi pi-heart"></i>
-          Me gusta · {{ publication.likes }}
+          {{ isLiked ? 'Ya me gusta' : `Me gusta · ${publication.likes}` }}
         </button>
 
-        <button class="secondary-btn" @click="commentsOpen = !commentsOpen">
+        <button type="button" class="secondary-btn" :aria-expanded="commentsOpen" @click="commentsOpen = !commentsOpen">
           <i class="pi pi-comments"></i>
-          Ver comentarios ({{ publication.comentarios?.length || 0 }})
+          {{ commentsOpen ? 'Ocultar comentarios' : 'Ver comentarios' }} ({{ publication.comentarios?.length || 0 }})
         </button>
 
         <button
           v-if="author && currentUser && author.id !== currentUser.id"
+          type="button"
           class="secondary-btn"
+          :class="{ 'action-toggle-following': isFollowingAuthor }"
+          :disabled="isFollowingAuthor"
+          :aria-pressed="isFollowingAuthor"
           @click="emit('follow', author.id)"
         >
           <i class="pi pi-user-plus"></i>
-          Seguir
+          {{ isFollowingAuthor ? 'Siguiendo' : 'Seguir' }}
         </button>
       </div>
 
@@ -243,6 +323,7 @@ function handleCommentDelete(commentId) {
   display: block;
   max-height: 420px;
   object-fit: cover;
+  border: 1px solid #39485d;
 }
 
 .post-card-title {
@@ -253,7 +334,7 @@ function handleCommentDelete(commentId) {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  color: #eff6ff;
+  color: #f3efe9;
 }
 
 .post-card-product {
@@ -267,7 +348,10 @@ function handleCommentDelete(commentId) {
 }
 
 .post-card-comments {
-  padding-top: 0.5rem;
+  padding: 1rem;
+  border-radius: 18px;
+  background: #1a2230;
+  border: 1px solid var(--surface-border);
 }
 
 .post-card-editor {

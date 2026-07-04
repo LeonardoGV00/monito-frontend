@@ -37,8 +37,8 @@ const sizeClass = computed(() => {
   justify-content: center;
   border-radius: 999px;
   overflow: hidden;
-  background: linear-gradient(135deg, rgba(96, 165, 250, 0.35), rgba(34, 197, 94, 0.25));
-  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: #2d3a4d;
+  border: 1px solid #42546d;
   color: white;
   font-weight: 800;
   letter-spacing: 0.04em;
