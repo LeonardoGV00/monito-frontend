@@ -1,4 +1,5 @@
 import { reactive } from 'vue'
+import { pickValue, pickId } from '../../shared/utils/normalize.js'
 import { socialApi } from '../infrastructure/social-api'
 import { iamApi } from '../../iam/infrastructure/iam-api'
 import { PublicationEntity } from '../domain/publication.entity'
@@ -7,36 +8,35 @@ import { CommentEntity } from '../domain/comment.entity'
 
 function normalizeUser(raw = {}) {
   return {
-    id: raw.id || '',
-    username: raw.username || '',
-    email: raw.email || '',
-    rol: raw.rol || 'cliente',
-    telefono: raw.telefono || '',
-    picture: raw.picture || '',
-    followers: Number(raw.followers || 0),
-    followersBase: Number(raw.followers || 0),
-    fechaRegistro: raw.fechaRegistro || null
+    id: pickId(raw),
+    username: pickValue(raw, ['username', 'Username'], ''),
+    email: pickValue(raw, ['email', 'Email'], ''),
+    rol: pickValue(raw, ['rol', 'Rol'], 'cliente'),
+    telefono: pickValue(raw, ['telefono', 'Telefono'], ''),
+    picture: pickValue(raw, ['picture', 'Picture'], ''),
+    followers: Number(pickValue(raw, ['followers', 'Followers'], 0) || 0),
+    followersBase: Number(pickValue(raw, ['followers', 'Followers'], 0) || 0),
+    fechaRegistro: pickValue(raw, ['fechaRegistro', 'FechaRegistro'], null)
   }
 }
 
 function normalizePublication(raw = {}) {
   const publication = new PublicationEntity(raw)
-  publication.likes = Number(raw.likes || 0)
-  publication.likesBase = Number(raw.likes || 0)
-  publication.multimedia = (raw.multimedia || []).map(item => ({
-    tipo: item?.tipo || 'imagen',
-    url: item?.url || '',
-    formato: item?.formato || ''
+  publication.likes = Number(pickValue(raw, ['likes', 'Likes'], 0) || 0)
+  publication.likesBase = Number(pickValue(raw, ['likes', 'Likes'], 0) || 0)
+  publication.multimedia = (pickValue(raw, ['multimedia', 'Multimedia'], []) || []).map(item => ({
+    tipo: pickValue(item, ['tipo', 'Tipo'], 'imagen'),
+    url: pickValue(item, ['url', 'Url'], ''),
+    formato: pickValue(item, ['formato', 'Formato'], '')
   }))
-  publication.comentarios = (raw.comentarios || []).map(item => ({
-    ...new CommentEntity(item)
-  }))
+  publication.comentarios = (pickValue(raw, ['comentarios', 'Comentarios'], []) || []).map(item => new CommentEntity(item))
   return publication
 }
 
 function normalizeProduct(raw = {}) {
   return new ProductEntity(raw)
 }
+
 
 function matchPublication(publication, author, product, query) {
   if (!query) return true
@@ -404,7 +404,7 @@ export const socialStore = reactive({
     const publication = this.getPublicationById(publicationId)
     if (publication) {
       publication.comentarios.unshift({
-        id: response.data.commentId || response.data.id || `tmp-${Date.now()}`,
+        id: pickId(response.data, `tmp-${Date.now()}`),
         usuarioId: userId,
         comentario,
         fecha: new Date().toISOString(),

@@ -1,13 +1,15 @@
+import { pickValue, pickId } from '../../shared/utils/normalize.js'
+
 export class UserEntity {
   constructor(raw = {}) {
-    this.id = raw.id || ''
-    this.username = raw.username || ''
-    this.email = raw.email || ''
-    this.rol = raw.rol || 'cliente'
-    this.telefono = raw.telefono || ''
-    this.picture = raw.picture || ''
-    this.followers = Number(raw.followers || 0)
-    this.fechaRegistro = raw.fechaRegistro || null
+    this.id = pickId(raw)
+    this.username = pickValue(raw, ['username', 'Username'], '')
+    this.email = pickValue(raw, ['email', 'Email'], '')
+    this.rol = pickValue(raw, ['rol', 'Rol'], 'cliente')
+    this.telefono = pickValue(raw, ['telefono', 'Telefono'], '')
+    this.picture = pickValue(raw, ['picture', 'Picture'], '')
+    this.followers = Number(pickValue(raw, ['followers', 'Followers'], 0) || 0)
+    this.fechaRegistro = pickValue(raw, ['fechaRegistro', 'FechaRegistro'], null)
   }
 
   get initials() {

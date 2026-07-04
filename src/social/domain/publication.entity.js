@@ -1,15 +1,21 @@
+import { pickValue, pickId, toDateOrNull } from '../../shared/utils/normalize.js'
+
 export class PublicationEntity {
   constructor(raw = {}) {
-    this.id = raw.id || ''
-    this.autorId = raw.autorId || ''
-    this.productoRelacionadoId = raw.productoRelacionadoId || ''
-    this.titulo = raw.titulo || ''
-    this.descripcion = raw.descripcion || ''
-    this.multimedia = Array.isArray(raw.multimedia) ? raw.multimedia : []
-    this.likes = Number(raw.likes || 0)
-    this.comentarios = Array.isArray(raw.comentarios) ? raw.comentarios : []
-    this.fechaPublicacion = raw.fechaPublicacion || null
-    this.editada = Boolean(raw.editada || false)
-    this.fechaEdicion = raw.fechaEdicion || null
+    this.id = pickId(raw)
+    this.autorId = String(pickValue(raw, ['autorId', 'AutorId'], ''))
+    this.productoRelacionadoId = String(pickValue(raw, ['productoRelacionadoId', 'ProductoRelacionadoId'], ''))
+    this.titulo = pickValue(raw, ['titulo', 'Titulo'], '')
+    this.descripcion = pickValue(raw, ['descripcion', 'Descripcion'], '')
+    this.multimedia = Array.isArray(pickValue(raw, ['multimedia', 'Multimedia'], []))
+      ? pickValue(raw, ['multimedia', 'Multimedia'], [])
+      : []
+    this.likes = Number(pickValue(raw, ['likes', 'Likes'], 0) || 0)
+    this.comentarios = Array.isArray(pickValue(raw, ['comentarios', 'Comentarios'], []))
+      ? pickValue(raw, ['comentarios', 'Comentarios'], [])
+      : []
+    this.fechaPublicacion = toDateOrNull(pickValue(raw, ['fechaPublicacion', 'FechaPublicacion'], null))
+    this.editada = Boolean(pickValue(raw, ['editada', 'Editada'], false))
+    this.fechaEdicion = toDateOrNull(pickValue(raw, ['fechaEdicion', 'FechaEdicion'], null))
   }
 }
