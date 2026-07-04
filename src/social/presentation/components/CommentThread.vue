@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import InitialsAvatar from './InitialsAvatar.vue'
 
 const props = defineProps({
@@ -16,6 +16,8 @@ const emit = defineEmits(['add', 'update', 'delete'])
 const draft = ref('')
 const editingCommentId = ref('')
 const editingText = ref('')
+
+const getCommentAuthor = computed(() => (commentId) => props.getUserById?.(commentId) || null)
 
 function formatDate(value) {
   if (!value) return ''
@@ -61,7 +63,7 @@ function saveEdit(comment) {
   <section class="comment-thread">
     <div class="comment-thread-header">
       <strong>Comentarios</strong>
-      <span class="muted">{{ comments.length }} publicación(es)</span>
+      <span class="muted">{{ comments.length }} comentario(s)</span>
     </div>
 
     <div class="comment-thread-composer">
@@ -86,12 +88,12 @@ function saveEdit(comment) {
     <article v-for="comment in comments" :key="comment.id" class="comment-item">
       <div class="comment-item-header">
         <InitialsAvatar
-          :name="getUserById(comment.usuarioId)?.username || 'Usuario'"
-          :picture="getUserById(comment.usuarioId)?.picture || ''"
+          :name="getCommentAuthor(comment.usuarioId)?.username || 'Usuario'"
+          :picture="getCommentAuthor(comment.usuarioId)?.picture || ''"
           :size="38"
         />
         <div class="comment-item-meta">
-          <strong>{{ getUserById(comment.usuarioId)?.username || 'Usuario eliminado' }}</strong>
+          <strong>{{ getCommentAuthor(comment.usuarioId)?.username || 'Usuario eliminado' }}</strong>
           <span>{{ formatDate(comment.fecha) }}</span>
           <span v-if="comment.editada || comment.fechaEdicion" class="pill">editado</span>
         </div>

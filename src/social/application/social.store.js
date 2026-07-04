@@ -326,15 +326,18 @@ export const socialStore = reactive({
   },
 
   getUserById(userId) {
-    return this.users.find(user => user.id === userId) || null
+    const users = Array.isArray(this?.users) ? this.users : []
+    return users.find(user => user.id === userId) || null
   },
 
   getProductById(productId) {
-    return this.products.find(product => product.id === productId) || null
+    const products = Array.isArray(this?.products) ? this.products : []
+    return products.find(product => product.id === productId) || null
   },
 
   getPublicationById(publicationId) {
-    return this.publications.find(publication => publication.id === publicationId) || null
+    const publications = Array.isArray(this?.publications) ? this.publications : []
+    return publications.find(publication => publication.id === publicationId) || null
   },
 
   getPublicationsForUser(userId) {

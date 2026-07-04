@@ -29,7 +29,12 @@ const publicationDraft = reactive({
   mediaDataUrl: ''
 })
 
-const mainMedia = computed(() => props.publication.multimedia?.[0] || null)
+const mediaItems = computed(() =>
+  Array.isArray(props.publication.multimedia)
+    ? props.publication.multimedia.filter(item => item?.url)
+    : []
+)
+const authorFollowers = computed(() => Number(props.author?.followers || 0))
 const isLiked = computed(() => Boolean(props.currentUser && socialStore.isPublicationLiked(props.publication.id, props.currentUser.id)))
 const isFollowingAuthor = computed(() => Boolean(
   props.author &&
@@ -58,6 +63,7 @@ function resetDraft() {
   publicationDraft.descripcion = props.publication.descripcion
   publicationDraft.productoRelacionadoId = props.publication.productoRelacionadoId
   publicationDraft.mediaUrl = props.publication.multimedia?.[0]?.url || ''
+
   publicationDraft.mediaDataUrl = ''
   if (editFileInput.value) {
     editFileInput.value.value = ''
@@ -159,6 +165,9 @@ function handleCommentDelete(commentId) {
             {{ formatDate(publication.fechaPublicacion) }}
             <span v-if="publication.editada || publication.fechaEdicion"> · editado</span>
           </div>
+          <div class="muted author-followers-line">
+            Seguidores: {{ authorFollowers }}
+          </div>
         </div>
       </div>
 
@@ -228,8 +237,10 @@ function handleCommentDelete(commentId) {
     </div>
 
     <template v-else>
-      <div v-if="mainMedia?.url" class="post-card-media">
-        <img :src="mainMedia.url" :alt="publication.titulo" />
+      <div v-if="mediaItems.length" class="post-card-media-grid" :class="{ 'post-card-media-grid--single': mediaItems.length === 1 }">
+        <figure v-for="(media, index) in mediaItems" :key="`${media.url}-${index}`" class="post-card-media-item">
+          <img :src="media.url" :alt="`${publication.titulo} imagen ${index + 1}`" />
+        </figure>
       </div>
 
       <h3 class="post-card-title">{{ publication.titulo }}</h3>
@@ -329,6 +340,10 @@ function handleCommentDelete(commentId) {
   gap: 0.2rem;
 }
 
+.author-followers-line {
+  font-size: 0.92rem;
+}
+
 .post-card-author-line {
   align-items: center;
 }
@@ -338,7 +353,21 @@ function handleCommentDelete(commentId) {
   gap: 0.25rem;
 }
 
-.post-card-media img {
+.post-card-media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.post-card-media-grid--single {
+  grid-template-columns: 1fr;
+}
+
+.post-card-media-item {
+  margin: 0;
+}
+
+.post-card-media-item img {
   width: 100%;
   border-radius: 18px;
   display: block;

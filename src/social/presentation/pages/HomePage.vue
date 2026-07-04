@@ -102,7 +102,7 @@ onMounted(ensureData)
       :products="socialStore.products"
       :current-user="currentUser"
       :is-admin="isAdmin"
-      :get-user-by-id="socialStore.getUserById"
+      :get-user-by-id="(id) => socialStore.getUserById(id)"
       @like="handleLike"
       @follow="handleFollow"
       @edit="handleEditPublication"

@@ -158,7 +158,7 @@ watch(() => route.params.id, loadProfile, { immediate: true })
               type="button"
               class="secondary-btn"
               :class="{ 'action-toggle-following': isFollowingProfile }"
-              :disabled="state.following || isFollowingProfile"
+              :disabled="state.following"
               :aria-pressed="isFollowingProfile"
               @click="followProfile"
             >
@@ -233,7 +233,7 @@ watch(() => route.params.id, loadProfile, { immediate: true })
           :product="socialStore.getProductById(publication.productoRelacionadoId)"
           :current-user="authStore.currentUser"
           :is-admin="isAdmin"
-          :get-user-by-id="socialStore.getUserById"
+          :get-user-by-id="(id) => socialStore.getUserById(id)"
           @like="publicationId => socialStore.likePublication(publicationId, authStore.currentUser.id)"
           @follow="userId => socialStore.followUser(userId, authStore.currentUser.id)"
           @edit="async ({ publicationId, payload }) => { await socialStore.updatePublication(publicationId, payload) }"
